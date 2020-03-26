@@ -3,7 +3,7 @@ using Transactions.API.Models;
 
 namespace Transactions.API.Interfaces
 {
-    public interface ITransactionRepository
+    public interface ITransactionService
     {
         IEnumerable<Transaction> GetAll();
         Transaction GetById(int id);

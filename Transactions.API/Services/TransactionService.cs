@@ -6,11 +6,11 @@ using Transactions.API.Models;
 
 namespace Transactions.API.DAL
 {
-    public class TransactionRepository : ITransactionRepository
+    public class TransactionService : ITransactionService
     {
         private readonly TransactionContext context;
 
-        public TransactionRepository(TransactionContext context)
+        public TransactionService(TransactionContext context)
         {
             this.context = context;
         }
@@ -38,7 +38,7 @@ namespace Transactions.API.DAL
         {
             if (item == null)
                 throw new ArgumentNullException("item");
-            var objItem = context.Transactions.Find(item.TransactionId);
+            var objItem = context.Transactions.Find(item.Id);
             if (objItem != null)
             {
                 objItem.Status = item.Status;

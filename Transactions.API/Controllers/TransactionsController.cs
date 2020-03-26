@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 using Microsoft.AspNetCore.Cors;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Transactions.API.DAL;
 using Transactions.API.Interfaces;
@@ -17,14 +13,17 @@ namespace Transactions.API.Controllers
     [ApiController]
     public class TransactionsController : ControllerBase
     {
-        private ICsvService csvService;
-        private ITransactionRepository transactionRepository;
+        private readonly ICsvService _csvService;
+        private readonly ITransactionService _transactionService;
+        private readonly TransactionContext _context;
 
-        public TransactionsController()
+        public TransactionsController(TransactionContext context)
         {
-            csvService = new CsvService(new TransactionContext());
-            transactionRepository = new TransactionRepository(new TransactionContext());
+            _context = context;
+            _csvService = new CsvService(_context);
+            _transactionService = new TransactionService(_context);
         }
+
         [Route("importcsv")]
         [HttpPost]
         public void ImportCsv()
@@ -32,7 +31,7 @@ namespace Transactions.API.Controllers
             var file = Request.Form.Files[0];
             if (file.Length > 0)
             {
-                csvService.UploadCsv(file);
+                _csvService.UploadCsv(file);
             }
 
         }
@@ -41,35 +40,35 @@ namespace Transactions.API.Controllers
         [Route("all")]
         public IEnumerable<Transaction> All()
         {
-            return transactionRepository.GetAll();
+            return _transactionService.GetAll();
         }
 
         [HttpGet]
         [Route("get/{id}")]
         public Transaction Get(int id)
         {
-            return transactionRepository.GetById(id);
+            return _transactionService.GetById(id);
         }
 
         [HttpPut]
         [Route("update")]
         public void Update(Transaction transaction)
         {
-            transactionRepository.Update(transaction);
+            _transactionService.Update(transaction);
         }
 
         [HttpDelete]
         [Route("delete/{id}")]
         public void Delete(int id)
         {
-            transactionRepository.Delete(id);
+            _transactionService.Delete(id);
         }
 
         [HttpGet]
         [Route("filtered")]
         public IEnumerable<Transaction> GetFilteredTransactions(string status, string type)
         {
-            return transactionRepository.GetFilteredTransactions(status, type);
+            return _transactionService.GetFilteredTransactions(status, type);
         }
     }
 }

@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using CsvHelper;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Globalization;
@@ -11,34 +13,40 @@ namespace Transactions.API.Services
 {
     public class CsvService : ICsvService
     {
-        private readonly TransactionContext context;
+        private readonly TransactionContext _context;
 
         public CsvService(TransactionContext context)
         {
-            this.context = context;
+            _context = context;
         }
 
         public void UploadCsv(IFormFile file)
         {
-            using (var transaction = context.Database.BeginTransaction())
+            using (var transaction = _context.Database.BeginTransaction())
             {
                 var csvListData = ReadCsv(file);
-                foreach(var csvData in csvListData)
+                foreach (var csvData in csvListData)
                 {
-                    Transaction existingTransaction = context.Transactions.Find(csvData.TransactionId);
-                    if (existingTransaction == null)
-                    {
-                        context.Add(csvData);
-                    }
-                    else
-                    {
-                        context.Entry(existingTransaction).CurrentValues.SetValues(csvData);
-                    }
+                    var sql1 = @"MERGE Transactions AS target  
+                    USING (SELECT @transactionId, @status, @type, @clientName, @amount) AS source (TransactionId, Status, Type, ClientName, Amount)  
+                    ON (target.TransactionId = source.TransactionId)
+                    WHEN MATCHED THEN
+                    UPDATE SET Status = source.Status, Type = source.Type, ClientName = source.ClientName  
+                    WHEN NOT MATCHED THEN  
+                    INSERT (TransactionId, Status, Type, ClientName, Amount )  
+                    VALUES (source.TransactionId, source.Status, source.Type, source.ClientName, source.Amount);";
+
+                    object[] parameters = {
+                        new SqlParameter("@TransactionId", csvData.TransactionId),
+                        new SqlParameter("@Status", csvData.Status),
+                        new SqlParameter("@Type", csvData.Type),
+                        new SqlParameter("@ClientName", csvData.ClientName),
+                        new SqlParameter("@Amount", csvData.Amount)
+    };
+                    _context.Database.ExecuteSqlCommand(sql1, parameters);
                 }
 
-                context.Database.ExecuteSqlCommand("SET IDENTITY_INSERT Transactions ON");
-                context.SaveChanges();
-                context.Database.ExecuteSqlRaw("SET IDENTITY_INSERT Transactions OFF");
+                _context.SaveChanges();
 
                 transaction.Commit();
             }
@@ -46,27 +54,26 @@ namespace Transactions.API.Services
 
         private IEnumerable<Transaction> ReadCsv(IFormFile file)
         {
-            var listTransactions = new List<Transaction>();
-            using (var sreader = new StreamReader(file.OpenReadStream(), true))
+            var records = new List<Transaction>(); ;
+            using (var reader = new StreamReader(file.OpenReadStream(), true))
+            using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
             {
-                //First line is header. If header is not passed in csv then we can neglect the below line.
-                string[] headers = sreader.ReadLine().Split(',');
-                //Loop through the records
-                while (!sreader.EndOfStream)
+                csv.Read();
+                csv.ReadHeader();
+                while (csv.Read())
                 {
-                    string[] rows = sreader.ReadLine().Split(',');
-                    var tr = new Transaction
+                    var record = new Transaction
                     {
-                        TransactionId = int.Parse(rows[0].ToString()),
-                        Status = rows[1].ToString(),
-                        Type = rows[2].ToString(),
-                        ClientName = rows[3].ToString(),
-                        Amount = decimal.Parse(rows[4].ToString().Remove(0, 1), CultureInfo.InvariantCulture)
+                        TransactionId = csv.GetField<int>("TransactionId"),
+                        Status = csv.GetField("Status"),
+                        Type = csv.GetField("Type"),
+                        ClientName = csv.GetField("ClientName"),
+                        Amount = decimal.Parse(csv.GetField("Amount").Remove(0, 1), CultureInfo.InvariantCulture)
                     };
-                    listTransactions.Add(tr);
+                    records.Add(record);
                 }
             }
-            return listTransactions;
+            return records;
         }
     }
 }
