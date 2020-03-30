@@ -10,6 +10,7 @@ using Microsoft.OpenApi.Models;
 using System.Reflection;
 using System.IO;
 using System;
+using Transactions.API.Services;
 
 namespace Transactions.API
 {
@@ -28,6 +29,7 @@ namespace Transactions.API
             services.AddDbContext<TransactionContext>(options => 
                 options.UseSqlServer(Configuration.GetConnectionString("TransactionsDatabase")));
             services.AddTransient<ITransactionService, TransactionService>();
+            services.AddTransient<ICsvService, CsvService>();
             services.AddCors();
             services.AddControllers();
             // Register the Swagger generator, defining 1 or more Swagger documents
@@ -54,9 +56,12 @@ namespace Transactions.API
             app.UseRouting();
 
             app.UseCors(builder => builder
-            .AllowAnyOrigin()
+            .WithOrigins("http://localhost:4200")
             .AllowAnyMethod()
             .AllowAnyHeader());
+
+            app.UseDefaultFiles();
+            app.UseStaticFiles();
 
             // Enable middleware to serve generated Swagger as a JSON endpoint.
             app.UseSwagger();
