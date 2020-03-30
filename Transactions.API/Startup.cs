@@ -11,6 +11,10 @@ using System.Reflection;
 using System.IO;
 using System;
 using Transactions.API.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Transactions.API.Models;
 
 namespace Transactions.API
 {
@@ -26,11 +30,36 @@ namespace Transactions.API
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<TransactionContext>(options => 
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                    .AddJwtBearer(options =>
+                    {
+                        options.RequireHttpsMetadata = false;
+                        options.SaveToken = true;
+                        options.TokenValidationParameters = new TokenValidationParameters
+                        {
+                            ValidateIssuer = true,
+                            ValidateAudience = true,
+                            ValidateLifetime = true,
+                            ValidateIssuerSigningKey = true,
+                            ValidIssuer = Configuration["Jwt:Issuer"],
+                            ValidAudience = Configuration["Jwt:Audience"],
+                            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["Jwt:SecretKey"])),
+                            ClockSkew = TimeSpan.Zero
+                        };
+                        services.AddCors();
+                    });
+
+            services.AddAuthorization(config =>
+            {
+                config.AddPolicy(Policies.Admin, Policies.AdminPolicy());
+                config.AddPolicy(Policies.User, Policies.UserPolicy());
+            });
+
+            services.AddDbContext<TransactionContext>(options =>
                 options.UseSqlServer(Configuration.GetConnectionString("TransactionsDatabase")));
+            services.AddTransient<ILoginService, LoginService>();
             services.AddTransient<ITransactionService, TransactionService>();
             services.AddTransient<ICsvService, CsvService>();
-            services.AddCors();
             services.AddControllers();
             // Register the Swagger generator, defining 1 or more Swagger documents
             services.AddSwaggerGen(c =>
@@ -54,6 +83,9 @@ namespace Transactions.API
             app.UseHttpsRedirection();
 
             app.UseRouting();
+
+            app.UseAuthentication();
+            app.UseAuthorization();
 
             app.UseCors(builder => builder
             .WithOrigins("http://localhost:4200")
