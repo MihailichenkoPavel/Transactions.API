@@ -27,23 +27,15 @@ namespace Transactions.API.Services
                 var csvListData = ReadCsv(file);
                 foreach (var csvData in csvListData)
                 {
-                    var sql1 = @"MERGE Transactions AS target  
-                    USING (SELECT @transactionId, @status, @type, @clientName, @amount) AS source (TransactionId, Status, Type, ClientName, Amount)  
-                    ON (target.TransactionId = source.TransactionId)
-                    WHEN MATCHED THEN
-                    UPDATE SET Status = source.Status, Type = source.Type, ClientName = source.ClientName  
-                    WHEN NOT MATCHED THEN  
-                    INSERT (TransactionId, Status, Type, ClientName, Amount )  
-                    VALUES (source.TransactionId, source.Status, source.Type, source.ClientName, source.Amount);";
-
                     object[] parameters = {
                         new SqlParameter("@TransactionId", csvData.TransactionId),
                         new SqlParameter("@Status", csvData.Status),
                         new SqlParameter("@Type", csvData.Type),
                         new SqlParameter("@ClientName", csvData.ClientName),
                         new SqlParameter("@Amount", csvData.Amount)
-    };
-                    _context.Database.ExecuteSqlCommand(sql1, parameters);
+                    };
+
+                    _context.Database.ExecuteSqlCommand("InsertOrUpdateTransactions @TransactionId, @Status, @Type, @ClientName, @Amount", parameters);
                 }
 
                 _context.SaveChanges();
